@@ -1,0 +1,20 @@
+[build]
+wasm_path = "target/wasm32-wasi/release"
+target = "wasm32-wasi"
+
+[gas]
+base_cost = 100
+memory_cost = 1000
+call_cost = 50
+storage_read = 200
+storage_write = 5000
+
+[test]
+timeout = 30
+parallel = true
+gas_limit = 1000000
+
+[profile]
+instruction_metering = true
+memory_tracking = true
+call_tracing = true

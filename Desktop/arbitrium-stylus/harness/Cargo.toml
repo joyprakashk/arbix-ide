@@ -1,0 +1,14 @@
+[package]
+name = "stylus-harness"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stylus-core = { path = "../core" }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+wat = "1.0"

@@ -1,0 +1,12 @@
+[build]
+wasm_path = "target/wasm32-wasi/release"
+target = "wasm32-wasi"
+
+[gas]
+base_cost = 100
+memory_cost = 1000
+call_cost = 50
+
+[test]
+timeout = 10
+gas_limit = 100000
