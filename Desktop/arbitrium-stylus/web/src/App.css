@@ -553,6 +553,29 @@ body {
   border-color: var(--accent-color);
 }
 
+.commit-actions {
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.commit-actions .git-btn {
+  flex: 1;
+}
+
+.git-btn.primary:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.git-btn.secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* LearnARB Panel Styles */
 .learn-arb-panel {
   height: 100%;

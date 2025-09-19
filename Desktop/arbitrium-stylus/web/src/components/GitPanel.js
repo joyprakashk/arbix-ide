@@ -16,9 +16,9 @@ const GitPanel = ({ onTerminalOutput }) => {
 
   const checkGitStatus = () => {
     const mockChanges = [
-      { file: 'src/lib.rs', status: 'modified', type: 'M' },
-      { file: 'tests/integration.rs', status: 'added', type: 'A' },
-      { file: 'Cargo.toml', status: 'modified', type: 'M' }
+      { file: 'src/lib.rs', status: 'modified', type: 'M', staged: false },
+      { file: 'tests/integration.rs', status: 'added', type: 'A', staged: false },
+      { file: 'Cargo.toml', status: 'modified', type: 'M', staged: false }
     ];
     setChanges(mockChanges);
     setGitStatus('initialized');
@@ -34,6 +34,15 @@ const GitPanel = ({ onTerminalOutput }) => {
     onTerminalOutput('✅ Git repository initialized');
     onTerminalOutput('📝 Created .git directory');
     onTerminalOutput('🌿 Created main branch');
+    onTerminalOutput('📝 Initial commit created');
+    
+    // Add initial changes after initialization
+    const initialChanges = [
+      { file: 'src/lib.rs', status: 'modified', type: 'M', staged: false },
+      { file: 'tests/integration.rs', status: 'added', type: 'A', staged: false },
+      { file: 'Cargo.toml', status: 'modified', type: 'M', staged: false }
+    ];
+    setChanges(initialChanges);
     
     setIsLoading(false);
   };
@@ -58,12 +67,16 @@ const GitPanel = ({ onTerminalOutput }) => {
   };
 
   const stageFile = (file) => {
+    const currentChange = changes.find(c => c.file === file);
+    const isCurrentlyStaged = currentChange?.staged || false;
+    
     setChanges(prev => prev.map(change => 
       change.file === file 
         ? { ...change, staged: !change.staged }
         : change
     ));
-    onTerminalOutput(`📋 ${changes.find(c => c.file === file)?.staged ? 'Unstaged' : 'Staged'}: ${file}`);
+    
+    onTerminalOutput(`📋 ${isCurrentlyStaged ? 'Unstaged' : 'Staged'}: ${file}`);
   };
 
   const commitChanges = async () => {
@@ -80,15 +93,27 @@ const GitPanel = ({ onTerminalOutput }) => {
     
     setIsLoading(true);
     onTerminalOutput(`📝 Committing ${stagedFiles.length} files...`);
+    onTerminalOutput(`📝 Files: ${stagedFiles.map(f => f.file).join(', ')}`);
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    onTerminalOutput(`✅ Committed: "${commitMessage}"`);
-    onTerminalOutput(`📊 ${stagedFiles.length} files changed`);
+    const commitHash = Math.random().toString(36).substring(2, 9);
+    onTerminalOutput(`✅ Committed [${commitHash}]: "${commitMessage}"`);
+    onTerminalOutput(`📊 ${stagedFiles.length} files changed, ${Math.floor(Math.random() * 50) + 10} insertions(+), ${Math.floor(Math.random() * 20)} deletions(-)`);
     
+    // Remove committed files from changes
     setChanges(prev => prev.filter(c => !c.staged));
     setCommitMessage('');
     setIsLoading(false);
+    
+    // Add some new mock changes after commit
+    setTimeout(() => {
+      const newChanges = [
+        { file: 'src/utils.rs', status: 'added', type: 'A', staged: false },
+        { file: 'README.md', status: 'modified', type: 'M', staged: false }
+      ];
+      setChanges(newChanges);
+    }, 2000);
   };
 
   const pushChanges = async () => {
@@ -117,16 +142,42 @@ const GitPanel = ({ onTerminalOutput }) => {
 
   const createBranch = () => {
     const branchName = prompt('Enter branch name:');
-    if (branchName && !branches.includes(branchName)) {
-      setBranches(prev => [...prev, branchName]);
-      setCurrentBranch(branchName);
-      onTerminalOutput(`🌿 Created and switched to branch: ${branchName}`);
+    if (branchName && branchName.trim()) {
+      const trimmedName = branchName.trim();
+      if (!branches.includes(trimmedName)) {
+        setBranches(prev => [...prev, trimmedName]);
+        setCurrentBranch(trimmedName);
+        onTerminalOutput(`🌿 Created and switched to branch: ${trimmedName}`);
+        onTerminalOutput(`🔄 Branch '${trimmedName}' is now active`);
+      } else {
+        onTerminalOutput(`❌ Branch '${trimmedName}' already exists`);
+      }
     }
   };
 
   const switchBranch = (branch) => {
-    setCurrentBranch(branch);
-    onTerminalOutput(`🌿 Switched to branch: ${branch}`);
+    if (branch !== currentBranch) {
+      setCurrentBranch(branch);
+      onTerminalOutput(`🌿 Switched to branch: ${branch}`);
+      onTerminalOutput(`🔄 Working directory updated`);
+      
+      // Simulate different changes on different branches
+      const branchChanges = {
+        'main': [
+          { file: 'src/lib.rs', status: 'modified', type: 'M', staged: false },
+          { file: 'Cargo.toml', status: 'modified', type: 'M', staged: false }
+        ],
+        'develop': [
+          { file: 'src/lib.rs', status: 'modified', type: 'M', staged: false },
+          { file: 'src/utils.rs', status: 'added', type: 'A', staged: false },
+          { file: 'tests/unit.rs', status: 'added', type: 'A', staged: false }
+        ]
+      };
+      
+      setChanges(branchChanges[branch] || [
+        { file: 'src/feature.rs', status: 'added', type: 'A', staged: false }
+      ]);
+    }
   };
 
   if (gitStatus === 'not-initialized') {
@@ -245,13 +296,25 @@ const GitPanel = ({ onTerminalOutput }) => {
             className="commit-input"
             rows="3"
           />
-          <button 
-            className="git-btn primary"
-            onClick={commitChanges}
-            disabled={isLoading || !commitMessage.trim()}
-          >
-            Commit
-          </button>
+          <div className="commit-actions">
+            <button 
+              className="git-btn primary"
+              onClick={commitChanges}
+              disabled={isLoading || !commitMessage.trim() || changes.filter(c => c.staged).length === 0}
+            >
+              {isLoading ? 'Committing...' : `Commit (${changes.filter(c => c.staged).length})`}
+            </button>
+            <button 
+              className="git-btn secondary"
+              onClick={() => {
+                setChanges(prev => prev.map(c => ({ ...c, staged: true })));
+                onTerminalOutput('📋 Staged all changes');
+              }}
+              disabled={isLoading || changes.length === 0}
+            >
+              Stage All
+            </button>
+          </div>
         </div>
       </div>
     </div>

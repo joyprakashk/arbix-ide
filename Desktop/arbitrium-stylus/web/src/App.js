@@ -136,17 +136,35 @@ function App() {
   }, []);
 
   const connectWallet = async () => {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    try {
+      if (!window.ethereum) {
+        addToTerminal('❌ No Web3 wallet detected. Please install a wallet extension.');
+        return;
+      }
+
+      addToTerminal('🔄 Connecting to wallet...');
+      
+      const accounts = await window.ethereum.request({ 
+        method: 'eth_requestAccounts' 
+      });
+      
+      if (accounts.length > 0) {
         setWalletConnected(true);
         setWalletAddress(accounts[0]);
-        addToTerminal(`✅ Wallet connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`);
-      } catch (error) {
+        
+        let walletName = 'Web3 Wallet';
+        if (window.ethereum.isMetaMask) walletName = 'MetaMask';
+        else if (window.ethereum.isOkxWallet) walletName = 'OKX Wallet';
+        else if (window.ethereum.isCoinbaseWallet) walletName = 'Coinbase Wallet';
+        
+        addToTerminal(`✅ ${walletName} connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`);
+      }
+    } catch (error) {
+      if (error.code === 4001) {
+        addToTerminal('❌ Wallet connection rejected by user');
+      } else {
         addToTerminal(`❌ Failed to connect wallet: ${error.message}`);
       }
-    } else {
-      addToTerminal('❌ MetaMask not detected. Please install MetaMask.');
     }
   };
 
@@ -462,32 +480,132 @@ function App() {
 
   const menuActions = {
     file: {
-      'New File': newFile,
-      'Save': saveFile,
-      'Save All': () => addToTerminal('💾 All files saved'),
-      'Close': () => closeTab(activeTab),
-      'Exit': () => addToTerminal('👋 Goodbye!')
+      'New File': () => {
+        newFile();
+        addToTerminal('📄 New file created');
+      },
+      'Save': () => {
+        saveFile();
+        addToTerminal('💾 File saved successfully');
+      },
+      'Save All': () => {
+        Object.keys(fileTree.src).forEach(file => {
+          fileTree.src[file] = { type: 'file', content: code };
+        });
+        addToTerminal('💾 All files saved');
+      },
+      'Close': () => {
+        if (activeTab) {
+          closeTab(activeTab);
+          addToTerminal(`🗂️ Closed ${activeTab}`);
+        }
+      },
+      'Exit': () => addToTerminal('👋 Goodbye! Thanks for using Arbitrum Stylus IDE')
     },
     edit: {
-      'Undo': () => editorRef.current?.trigger('keyboard', 'undo', null),
-      'Redo': () => editorRef.current?.trigger('keyboard', 'redo', null),
-      'Find': () => editorRef.current?.trigger('keyboard', 'actions.find', null),
-      'Replace': () => editorRef.current?.trigger('keyboard', 'editor.action.startFindReplaceAction', null)
+      'Undo': () => {
+        editorRef.current?.trigger('keyboard', 'undo', null);
+        addToTerminal('↶ Undo action performed');
+      },
+      'Redo': () => {
+        editorRef.current?.trigger('keyboard', 'redo', null);
+        addToTerminal('↷ Redo action performed');
+      },
+      'Find': () => {
+        editorRef.current?.trigger('keyboard', 'actions.find', null);
+        addToTerminal('🔍 Find dialog opened');
+      },
+      'Replace': () => {
+        editorRef.current?.trigger('keyboard', 'editor.action.startFindReplaceAction', null);
+        addToTerminal('🔄 Find & Replace dialog opened');
+      },
+      'Format Document': () => {
+        editorRef.current?.trigger('editor', 'editor.action.formatDocument', null);
+        addToTerminal('✨ Document formatted');
+      }
     },
     view: {
-      'Command Palette': () => setShowCommandPalette(true),
-      'Toggle Terminal': () => setShowTerminal(!showTerminal),
-      'Toggle Theme': toggleTheme,
-      'Explorer': () => setSidebarView('explorer'),
-      'Testing': () => setSidebarView('test'),
-      'Git': () => setSidebarView('git'),
-      'LearnARB': () => setSidebarView('learn')
+      'Command Palette': () => {
+        setShowCommandPalette(true);
+        addToTerminal('⌘ Command palette opened');
+      },
+      'Toggle Terminal': () => {
+        setShowTerminal(!showTerminal);
+        addToTerminal(`📟 Terminal ${!showTerminal ? 'opened' : 'closed'}`);
+      },
+      'Toggle Theme': () => {
+        toggleTheme();
+        addToTerminal(`🎨 Switched to ${theme === 'dark' ? 'light' : 'dark'} theme`);
+      },
+      'Explorer': () => {
+        setSidebarView('explorer');
+        addToTerminal('📁 File explorer opened');
+      },
+      'Testing': () => {
+        setSidebarView('test');
+        addToTerminal('🧪 Test panel opened');
+      },
+      'Git': () => {
+        setSidebarView('git');
+        addToTerminal('📂 Git panel opened');
+      },
+      'LearnARB': () => {
+        setSidebarView('learn');
+        addToTerminal('📚 LearnARB panel opened');
+      },
+      'Gas Profiler': () => {
+        setSidebarView('profiler');
+        addToTerminal('📊 Gas profiler opened');
+      },
+      'Debugger': () => {
+        setSidebarView('debug');
+        addToTerminal('🐛 Debugger panel opened');
+      }
     },
     run: {
-      'Build Project': buildProject,
-      'Run Tests': runTests,
-      'Start Debugging': startDebugger,
-      'Deploy Contract': deployContract
+      'Build Project': () => {
+        buildProject();
+        addToTerminal('🔨 Build process started');
+      },
+      'Run Tests': () => {
+        runTests();
+        addToTerminal('🧪 Test execution started');
+      },
+      'Start Debugging': () => {
+        startDebugger();
+        addToTerminal('🐛 Debug session started');
+      },
+      'Deploy Contract': () => {
+        if (walletConnected) {
+          deployContract();
+          addToTerminal('🚀 Contract deployment started');
+        } else {
+          addToTerminal('❌ Please connect wallet first');
+        }
+      },
+      'Profile Gas': () => {
+        profileGas();
+        addToTerminal('📊 Gas profiling started');
+      }
+    },
+    help: {
+      'Documentation': () => {
+        addToTerminal('📖 Opening Arbitrum Stylus documentation...');
+        window.open('https://docs.arbitrum.io/stylus/stylus-gentle-introduction', '_blank');
+      },
+      'Keyboard Shortcuts': () => {
+        addToTerminal('⌨️ Keyboard shortcuts:');
+        addToTerminal('  Ctrl+S: Save file');
+        addToTerminal('  Ctrl+Shift+P: Command palette');
+        addToTerminal('  Ctrl+Shift+B: Build project');
+        addToTerminal('  Ctrl+Shift+T: Run tests');
+        addToTerminal('  F5: Start debugging');
+      },
+      'About': () => {
+        addToTerminal('ℹ️ Arbitrum Stylus IDE v1.0.0');
+        addToTerminal('🏗️ Built for Arbitrum ecosystem development');
+        addToTerminal('🦀 Rust + WebAssembly smart contracts');
+      }
     }
   };
 
@@ -524,9 +642,9 @@ function App() {
               <span>Deploy Contract</span>
               <span className="command-shortcut">Ctrl+Shift+D</span>
             </div>
-            <div className="command-item" onClick={connectWallet}>
-              <span className="command-icon">🦊</span>
-              <span>Connect Wallet</span>
+            <div className="command-item" onClick={() => !walletConnected && connectWallet()}>
+              <span className="command-icon">🔗</span>
+              <span>{walletConnected ? 'Wallet Connected' : 'Connect Wallet'}</span>
             </div>
             <div className="command-item" onClick={toggleTheme}>
               <span className="command-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
@@ -834,7 +952,7 @@ function App() {
             </div>
           ) : (
             <button className="connect-wallet-btn" onClick={connectWallet}>
-              🦊 Connect Wallet
+              🔗 Connect Wallet
             </button>
           )}
         </div>
@@ -856,7 +974,11 @@ function App() {
                     className="menu-dropdown-item"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handler();
+                      try {
+                        handler();
+                      } catch (error) {
+                        addToTerminal(`❌ Error executing ${action}: ${error.message}`);
+                      }
                       setShowMenuDropdown(null);
                     }}
                   >
@@ -1068,7 +1190,7 @@ function App() {
         <div className="status-right">
           <span className="status-item">Stylus v0.1.0</span>
           <span className="status-item">⚡ Wasmer</span>
-          {walletConnected && <span className="status-item">🦊 Connected</span>}
+          {walletConnected && <span className="status-item">🔗 Connected</span>}
           {deployedContract && <span className="status-item">📝 Deployed</span>}
         </div>
       </div>
