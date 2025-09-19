@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import GitPanel from './components/GitPanel';
+import LearnARB from './components/LearnARB';
 import './App.css';
 
 const defaultCode = `use stylus_sdk::prelude::*;
@@ -77,7 +79,6 @@ mod tests {
 
     #[test]
     fn test_gas_limit() {
-        // This test should fail due to gas limit
         for _ in 0..1000 {
             increment();
         }
@@ -96,7 +97,7 @@ function App() {
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState('Welcome to Arbix\n$ ');
+  const [terminalOutput, setTerminalOutput] = useState('Welcome to Arbitrum Stylus IDE\n$ ');
   const [showTerminal, setShowTerminal] = useState(true);
   const [openTabs, setOpenTabs] = useState(['lib.rs']);
   const [theme, setTheme] = useState('dark');
@@ -478,7 +479,9 @@ function App() {
       'Toggle Terminal': () => setShowTerminal(!showTerminal),
       'Toggle Theme': toggleTheme,
       'Explorer': () => setSidebarView('explorer'),
-      'Testing': () => setSidebarView('test')
+      'Testing': () => setSidebarView('test'),
+      'Git': () => setSidebarView('git'),
+      'LearnARB': () => setSidebarView('learn')
     },
     run: {
       'Build Project': buildProject,
@@ -529,6 +532,14 @@ function App() {
               <span className="command-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
               <span>Toggle Theme</span>
             </div>
+            <div className="command-item" onClick={() => setSidebarView('git')}>
+              <span className="command-icon">📂</span>
+              <span>Open Git Panel</span>
+            </div>
+            <div className="command-item" onClick={() => setSidebarView('learn')}>
+              <span className="command-icon">📚</span>
+              <span>Open LearnARB</span>
+            </div>
           </div>
         </div>
       </div>
@@ -573,7 +584,7 @@ function App() {
 
     return (
       <div className="file-explorer">
-        <div className="explorer-header">
+        <div className="panel-header">
           <span>EXPLORER</span>
           <div className="explorer-actions">
             <button title="New File" onClick={newFile}>📄</button>
@@ -581,8 +592,10 @@ function App() {
             <button title="Refresh">🔄</button>
           </div>
         </div>
-        <div className="file-tree">
-          {renderFileTree(fileTree)}
+        <div className="panel-content">
+          <div className="file-tree">
+            {renderFileTree(fileTree)}
+          </div>
         </div>
       </div>
     );
@@ -805,7 +818,7 @@ function App() {
             <div className="control minimize"></div>
             <div className="control maximize"></div>
           </div>
-          <span className="app-title">Arbix IDE</span>
+          <span className="app-title">Arbitrum Stylus IDE</span>
         </div>
         <div className="title-center">
           <span className="project-name">stylus-contract</span>
@@ -873,6 +886,13 @@ function App() {
             🔍
           </div>
           <div 
+            className={`activity-item ${sidebarView === 'git' ? 'active' : ''}`}
+            onClick={() => setSidebarView('git')}
+            title="Source Control"
+          >
+            📂
+          </div>
+          <div 
             className={`activity-item ${sidebarView === 'test' ? 'active' : ''}`}
             onClick={() => setSidebarView('test')}
             title="Testing"
@@ -894,6 +914,13 @@ function App() {
             📊
           </div>
           <div 
+            className={`activity-item ${sidebarView === 'learn' ? 'active' : ''}`}
+            onClick={() => setSidebarView('learn')}
+            title="LearnARB"
+          >
+            📚
+          </div>
+          <div 
             className="activity-item"
             onClick={() => setShowCommandPalette(true)}
             title="Command Palette"
@@ -904,9 +931,11 @@ function App() {
 
         <div className="sidebar">
           {sidebarView === 'explorer' && <FileExplorer />}
+          {sidebarView === 'git' && <GitPanel onTerminalOutput={addToTerminal} />}
           {sidebarView === 'test' && <TestPanel />}
           {sidebarView === 'debug' && <DebugPanel />}
           {sidebarView === 'profiler' && <ProfilerPanel />}
+          {sidebarView === 'learn' && <LearnARB />}
         </div>
 
         <div className="editor-area">
