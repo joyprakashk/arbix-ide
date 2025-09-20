@@ -125,8 +125,11 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(400);
   const [inputMessage, setInputMessage] = useState('');
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [isComposing, setIsComposing] = useState(false);
   const editorRef = useRef(null);
   const chatHistoryRef = useRef(null);
+  const chatInputRef = useRef(null);
+  const chatHadFocusRef = useRef(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -150,32 +153,46 @@ function App() {
     }
   }, [chatHistory]);
 
+  // Maintain focus on AriAI input only if the user was already typing there,
+  // to avoid stealing focus from the main code editor or other UI.
+  useEffect(() => {
+    if (
+      sidebarView === 'ariai' &&
+      chatInputRef.current &&
+      chatHadFocusRef.current &&
+      !isLoading &&
+      document.activeElement !== chatInputRef.current
+    ) {
+      chatInputRef.current.focus({ preventScroll: true });
+    }
+  }, [sidebarView, isLoading]);
+
   useEffect(() => {
     const handleResize = (e) => {
       if (e.target.classList.contains('resize-handle')) {
         const startX = e.clientX;
         const startWidth = sidebarWidth;
-        
+
         const handleMouseMove = (e) => {
           const newWidth = startWidth - (e.clientX - startX);
           if (newWidth >= 300 && newWidth <= window.innerWidth * 0.5) {
             setSidebarWidth(newWidth);
           }
         };
-        
+
         const handleMouseUp = () => {
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
         };
-        
+
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
       }
     };
-    
+
     document.addEventListener('mousedown', handleResize);
     return () => document.removeEventListener('mousedown', handleResize);
-  }, [sidebarWidth]);
+  }, []); // Remove sidebarWidth from dependencies to prevent ResizeObserver loop
 
   const connectWallet = async () => {
     try {
@@ -842,7 +859,11 @@ function App() {
               <span>Deploy Contract</span>
               <span className="command-shortcut">Ctrl+Shift+D</span>
             </div>
-            <div className="command-item" onClick={() => !walletConnected && connectWallet()}>
+            <div className="command-item" onClick={() => {
+              if (!walletConnected) {
+                connectWallet();
+              }
+            }}>
               <span className="command-icon">🔗</span>
               <span>{walletConnected ? 'Wallet Connected' : 'Connect Wallet'}</span>
             </div>
@@ -1282,16 +1303,49 @@ function App() {
             )}
             <div className="input-wrapper">
               <textarea
+                ref={chatInputRef}
                 value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder={ariAIMode === 'chat' ? 'Ask me anything about your code...' : 
+                onChange={(e) => {
+                  setInputMessage(e.target.value);
+                  // Ensure cursor position is maintained
+                  setTimeout(() => {
+                    if (chatInputRef.current) {
+                      chatInputRef.current.focus();
+                    }
+                  }, 0);
+                }}
+                placeholder={ariAIMode === 'chat' ? 'Ask me anything about your code...' :
                            ariAIMode === 'agent' ? 'Tell me what to change in your code...' :
                            'Paste code to migrate between languages...'}
                 onKeyDown={(e) => {
+                  if (isComposing) return; // don't intercept during IME composition
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if (!isLoading && (inputMessage.trim() || attachedFiles.length > 0)) sendMessage();
                   }
+                }}
+                onFocus={(e) => {
+                  chatHadFocusRef.current = true;
+                  // Ensure proper cursor positioning on focus
+                  setTimeout(() => {
+                    const len = e.target.value.length;
+                    e.target.setSelectionRange(len, len);
+                  }, 0);
+                }}
+                onBlur={() => { chatHadFocusRef.current = false; }}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                onClick={(e) => {
+                  // Maintain cursor position on click
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onInput={(e) => {
+                  // Ensure cursor stays at the end after input
+                  setTimeout(() => {
+                    const len = e.target.value.length;
+                    e.target.setSelectionRange(len, len);
+                  }, 0);
                 }}
                 className="message-input"
                 rows={3}
@@ -1300,6 +1354,7 @@ function App() {
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
+                style={{ cursor: 'text' }}
               />
               <div className="input-actions">
                 <input
