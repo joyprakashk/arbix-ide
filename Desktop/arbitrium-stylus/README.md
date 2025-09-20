@@ -1,254 +1,220 @@
-# 🚀 Arbitrum Stylus IDE
+# Arbitrum Stylus IDE
 
-**Production-ready development environment for Arbitrum Stylus smart contracts**
+**Web-based development environment for Arbitrum Stylus smart contracts**
 
-A comprehensive IDE that provides local simulation, Rust-based test harness, step debugging, gas profiling, and CI integration for Stylus (WebAssembly) smart contracts.
+A comprehensive IDE featuring Monaco Editor, AriAI Assistant, gas profiling, debugging tools, and wallet integration for developing Rust-based WebAssembly smart contracts on Arbitrum.
 
-## ✨ Features
+## Features
 
-- **🔧 Local Execution Engine**: Run Stylus contracts locally using Wasmer/WASI
-- **🧪 Test Harness**: Jest-like testing framework for Rust smart contracts  
-- **📊 Gas Profiling**: Detailed gas usage analysis and optimization insights
-- **🐛 Step Debugging**: Interactive debugger with breakpoints and memory inspection
-- **⚡ CLI Tools**: Complete command-line interface for build, test, debug, profile
-- **🌐 Web IDE**: Monaco Editor-based web interface with real-time feedback
-- **🔄 CI/CD Integration**: GitHub Actions for automated testing and deployment
-- **📈 Enterprise Ready**: Production-grade architecture and error handling
+- **Monaco Editor**: Full-featured code editor with Rust syntax highlighting
+- **AriAI Assistant**: AI-powered coding assistant with file attachment support
+- **Gas Profiler**: Analyze and optimize contract gas usage
+- **Interactive Debugger**: Step-through debugging with breakpoints
+- **Wallet Integration**: Connect MetaMask and other Web3 wallets
+- **Contract Deployment**: Deploy to Arbitrum Sepolia testnet
+- **Test Runner**: Execute and visualize test results
+- **Git Integration**: Source control management
+- **LearnARB**: Educational resources and tutorials
 
-## 🚀 Quick Start
+## Tech Stack
 
-### Prerequisites
+### Frontend (Web IDE)
+- **React** 18.2.0 - UI framework
+- **Monaco Editor** 4.6.0 - Code editor
+- **Ethers.js** 6.8.0 - Ethereum library
+- **Web3.js** 4.3.0 - Web3 interactions
+- **Axios** 1.6.0 - HTTP client
+
+### Backend (AriAI Assistant)
+- **FastAPI** 0.104.1 - Python web framework
+- **Groq** 0.4.1 - AI model integration
+- **Uvicorn** 0.24.0 - ASGI server
+- **Python-multipart** 0.0.6 - File upload support
+
+## Prerequisites
+
+- **Node.js** 16+ and npm
+- **Python** 3.8+ and pip
+- **Web3 Wallet** (MetaMask recommended)
+- **Groq API Key** (for AriAI Assistant)
+
+## Installation & Setup
+
+### 1. Clone Repository
 ```bash
-# Install Rust and WASM target
-rustup toolchain install stable
-rustup target add wasm32-wasi
+git clone https://github.com/your-username/arbitrium-stylus
+cd arbitrium-stylus
 ```
 
-### Installation
+### 2. Setup Backend (AriAI Assistant)
 ```bash
-git clone https://github.com/your-org/arbitrum-stylus-ide
-cd arbitrum-stylus-ide
+cd AI
 
-# Build all components
-cargo build --release
+# Install Python dependencies
+pip install -r requirements.txt
 
-# Install CLI globally
-cargo install --path cli
+# Create environment file
+echo "GROQ_API_KEY=your_groq_api_key_here" > .env
 ```
 
-### Usage
-
-#### 1. Initialize New Project
+### 3. Setup Frontend (Web IDE)
 ```bash
-stylus init my-contract
-cd my-contract
+cd ../web
+
+# Install Node.js dependencies
+npm install
 ```
 
-#### 2. Build Contract
+## Running the Application
+
+### Start Backend Server
 ```bash
-stylus build
+cd AI
+
+# Option 1: Use the batch script (Windows)
+start.bat
+
+# Option 2: Manual start
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### 3. Run Tests
-```bash
-stylus test
-# Or with JSON output
-stylus test --json
-```
-
-#### 4. Profile Gas Usage
-```bash
-stylus profile increment --args 1,2,3
-```
-
-#### 5. Debug Function
-```bash
-stylus debug increment --args 1,2,3
-```
-
-#### 6. Launch Web IDE
+### Start Frontend Development Server
 ```bash
 cd web
-npm install
 npm start
-# Open http://localhost:3000
 ```
 
-## 🏗️ Architecture
+The application will be available at:
+- **Web IDE**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+
+## Project Structure
 
 ```
-arbitrum-stylus/
-├── core/           # Rust execution engine (Wasmer integration)
-├── harness/        # Test framework and runner
-├── cli/            # Command-line interface
-├── web/            # React web IDE with Monaco Editor
-├── examples/       # Sample contracts and tests
-└── .github/        # CI/CD workflows
+arbitrium-stylus/
+├── AI/                     # Backend (AriAI Assistant)
+│   ├── main.py            # FastAPI application
+│   ├── requirements.txt   # Python dependencies
+│   ├── .env              # Environment variables
+│   └── start.bat         # Windows startup script
+├── web/                   # Frontend (React IDE)
+│   ├── src/
+│   │   ├── App.js        # Main application
+│   │   ├── App.css       # Styles
+│   │   └── components/   # React components
+│   ├── package.json      # Node.js dependencies
+│   └── public/           # Static assets
+├── core/                  # Rust execution engine
+├── harness/              # Test framework
+├── cli/                  # Command-line tools
+├── examples/             # Sample contracts
+└── .github/              # CI/CD workflows
 ```
 
-### Core Components
+## Usage Guide
 
-1. **Execution Engine** (`core/`)
-   - Wasmer-based WASM runtime
-   - Gas metering and profiling
-   - Memory and stack instrumentation
-   - Deterministic execution sandbox
+### 1. Connect Wallet
+- Click "Connect Wallet" in the top-right corner
+- Approve the connection in your Web3 wallet
+- Supported wallets: MetaMask, OKX Wallet, Coinbase Wallet
 
-2. **Test Harness** (`harness/`)
-   - Rust test macros and assertions
-   - Parallel test execution
-   - Gas limit testing
-   - Result aggregation and reporting
+### 2. Write Smart Contracts
+- Use the Monaco Editor with Rust syntax highlighting
+- Access file explorer in the left sidebar
+- Create new files and organize your project
 
-3. **CLI** (`cli/`)
-   - Project scaffolding
-   - Build automation
-   - Test runner with detailed output
-   - Interactive debugger
-   - Gas profiler with breakdown
+### 3. Use AriAI Assistant
+- Click the robot icon (🤖) in the activity bar
+- Choose from three modes:
+  - **Chat**: General coding assistance
+  - **Agent**: Direct code editing
+  - **Migrate**: Convert between Rust, Solidity, and C++
+- Attach files (images, PDFs, text) for context
 
-4. **Web IDE** (`web/`)
-   - Monaco Editor with Rust syntax highlighting
-   - Real-time test execution
-   - Visual gas profiling
-   - Interactive debugging interface
+### 4. Test and Debug
+- Click "Test" to run unit tests
+- Use "Debug" for step-through debugging
+- Set breakpoints by clicking line numbers
 
-## 📊 Example Usage
+### 5. Deploy Contracts
+- Click "Deploy" to deploy to Arbitrum Sepolia
+- Interact with deployed contracts using the interaction panel
 
-### Writing Tests
-```rust
-use stylus_harness::{StylusRunner, stylus_test};
+### 6. Profile Gas Usage
+- Click "Profile" to analyze gas consumption
+- View detailed breakdowns and optimization suggestions
 
-#[test]
-fn test_counter_increment() {
-    let wasm = std::fs::read("target/wasm32-wasi/release/counter.wasm").unwrap();
-    let mut runner = StylusRunner::new(&wasm).unwrap();
-    
-    // Test increment function
-    stylus_test!(runner, "increment_test", "increment", &[], 1);
-    stylus_test!(runner, "increment_again", "increment", &[], 2);
-    
-    // Test gas limits
-    runner.assert_gas_limit("gas_test", "increment", &[], 1000);
-    
-    let suite = runner.finalize_suite("counter_tests");
-    assert_eq!(suite.passed, 3);
-}
-```
+## Configuration
 
-### CLI Output
+### Environment Variables (.env)
 ```bash
-$ stylus test
-
-=== Test Suite: counter ===
-Passed: 3, Failed: 0
-Total Gas Used: 340
-
-  ✓ increment_test
-    Gas: 120, Return: 1
-  ✓ increment_again  
-    Gas: 120, Return: 2
-  ✓ gas_test (gas limit)
-    Gas: 100, Return: 1
+# Required for AriAI Assistant
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### Gas Profiling
+### Supported File Types (AriAI)
+- **Images**: JPEG, PNG, GIF (max 10MB)
+- **Documents**: PDF, TXT, MD (max 10MB)
+
+## API Endpoints
+
+### Backend API (http://localhost:8000)
+- `POST /chat` - AriAI chat interactions
+- `POST /upload` - File upload for attachments
+- `GET /health` - Health check
+
+## Development
+
+### Frontend Development
 ```bash
-$ stylus profile increment
-
-=== Gas Profile ===
-Function: increment
-Gas Used: 120
-Instructions: 12
-Call Depth: 1
-
-Breakdown:
-  local_get: 20 gas
-  local_set: 15 gas  
-  i64_add: 30 gas
-  call: 55 gas
+cd web
+npm start          # Start development server
+npm run build      # Build for production
+npm test           # Run tests
 ```
 
-## 🔄 CI/CD Integration
-
-The project includes a complete GitHub Actions workflow:
-
-```yaml
-# Automatically runs on push/PR
-- Build all Rust components
-- Run comprehensive test suite
-- Build example contracts
-- Generate test reports
-- Upload artifacts
-```
-
-Enable CI in your project:
+### Backend Development
 ```bash
-stylus ci-setup
+cd AI
+uvicorn main:app --reload  # Start with auto-reload
 ```
 
-## 🎯 Demo Script (2-3 minutes)
+## Troubleshooting
 
-Perfect for hackathon presentations:
+### Common Issues
 
-1. **Problem** (0:20): "Stylus developers lack proper testing and debugging tools"
-2. **Solution** (0:20): "Full-featured IDE with local execution and gas profiling"  
-3. **Live Demo** (1:20):
-   - Show contract in Monaco Editor
-   - Run `stylus build` and `stylus test`
-   - Display gas profiling results
-   - Show step-by-step debugger
-4. **Impact** (0:40): "Reduces development time by 80%, prevents gas optimization issues"
+1. **MetaMask Connection Error**
+   - Ensure MetaMask is installed and unlocked
+   - Check browser console for detailed errors
+   - Try refreshing the page
 
-## 🏆 Production Features
+2. **AriAI Not Responding**
+   - Verify backend server is running on port 8000
+   - Check GROQ_API_KEY is set correctly
+   - Ensure no firewall blocking localhost:8000
 
-- **Enterprise Security**: Sandboxed execution, no network access
-- **Scalability**: Parallel test execution, efficient WASM runtime
-- **Reliability**: Comprehensive error handling, graceful degradation
-- **Extensibility**: Plugin architecture, custom gas tables
-- **Performance**: Optimized for large codebases, incremental builds
+3. **Build Errors**
+   - Run `npm install` to ensure all dependencies are installed
+   - Clear npm cache: `npm cache clean --force`
+   - Delete node_modules and reinstall
 
-## 📈 Metrics & Analytics
+### Terminal Messages
+The IDE uses professional logging with timestamps:
+- `INFO:` - General information
+- `ERROR:` - Error messages
+- `BUILD:` - Compilation messages
+- `TEST:` - Test execution
+- `DEPLOY:` - Contract deployment
+- `DEBUG:` - Debugging operations
 
-- **Time-to-first-test**: < 30 seconds for new projects
-- **Gas estimation accuracy**: 95%+ vs mainnet
-- **Test execution speed**: 10x faster than on-chain testing
-- **Memory efficiency**: < 50MB for typical contracts
+## Contributing
 
-## 🛠️ Development
-
-### Build from Source
-```bash
-# Core components
-cargo build --release -p stylus-core
-cargo build --release -p stylus-harness  
-cargo build --release -p stylus-cli
-
-# Web interface
-cd web && npm install && npm run build
-
-# Run tests
-cargo test --all
-```
-
-### Contributing
 1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Commit changes: `git commit -m 'Add new feature'`
+4. Push to branch: `git push origin feature/new-feature`
+5. Submit a Pull Request
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🤝 Support
-
-- **Documentation**: [docs.stylus-ide.dev](https://docs.stylus-ide.dev)
-- **Discord**: [Join our community](https://discord.gg/stylus-ide)
-- **Issues**: [GitHub Issues](https://github.com/your-org/arbitrum-stylus-ide/issues)
-- **Email**: support@stylus-ide.dev
-
----
-
-**Built with ❤️ for the Arbitrum ecosystem**
