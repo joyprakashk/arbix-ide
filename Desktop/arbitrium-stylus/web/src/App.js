@@ -97,7 +97,7 @@ function App() {
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState('Welcome to Arbitrum Stylus IDE\n$ ');
+  const [terminalOutput, setTerminalOutput] = useState('Arbitrum Stylus IDE Terminal\nType commands or use the toolbar buttons above\n$ ');
   const [showTerminal, setShowTerminal] = useState(true);
   const [openTabs, setOpenTabs] = useState(['lib.rs']);
   const [theme, setTheme] = useState('dark');
@@ -118,7 +118,16 @@ function App() {
     'Cargo.toml': { type: 'file', content: '[package]\nname = "stylus-contract"' },
     'README.md': { type: 'file', content: '# Stylus Contract' }
   });
+  const [ariAIMode, setAriAIMode] = useState('chat');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [sourceLanguage, setSourceLanguage] = useState('rust');
+  const [targetLanguage, setTargetLanguage] = useState('solidity');
+  const [sidebarWidth, setSidebarWidth] = useState(400);
+  const [inputMessage, setInputMessage] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const editorRef = useRef(null);
+  const chatHistoryRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -135,20 +144,61 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (chatHistoryRef.current) {
+      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
+
+  useEffect(() => {
+    const handleResize = (e) => {
+      if (e.target.classList.contains('resize-handle')) {
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+        
+        const handleMouseMove = (e) => {
+          const newWidth = startWidth - (e.clientX - startX);
+          if (newWidth >= 300 && newWidth <= window.innerWidth * 0.5) {
+            setSidebarWidth(newWidth);
+          }
+        };
+        
+        const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleResize);
+    return () => document.removeEventListener('mousedown', handleResize);
+  }, [sidebarWidth]);
+
   const connectWallet = async () => {
     try {
-      if (!window.ethereum) {
-        addToTerminal('❌ No Web3 wallet detected. Please install a wallet extension.');
+      if (typeof window.ethereum === 'undefined') {
+        addToTerminal('ERROR: No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
         return;
       }
 
-      addToTerminal('🔄 Connecting to wallet...');
+      addToTerminal('INFO: Connecting to wallet...');
       
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      });
+      // Check if already connected
+      const existingAccounts = await window.ethereum.request({ method: 'eth_accounts' });
       
-      if (accounts.length > 0) {
+      let accounts;
+      if (existingAccounts.length > 0) {
+        accounts = existingAccounts;
+      } else {
+        accounts = await window.ethereum.request({ 
+          method: 'eth_requestAccounts' 
+        });
+      }
+      
+      if (accounts && accounts.length > 0) {
         setWalletConnected(true);
         setWalletAddress(accounts[0]);
         
@@ -157,19 +207,35 @@ function App() {
         else if (window.ethereum.isOkxWallet) walletName = 'OKX Wallet';
         else if (window.ethereum.isCoinbaseWallet) walletName = 'Coinbase Wallet';
         
-        addToTerminal(`✅ ${walletName} connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`);
+        addToTerminal(`SUCCESS: ${walletName} connected to ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`);
+        
+        // Listen for account changes
+        window.ethereum.on('accountsChanged', (newAccounts) => {
+          if (newAccounts.length === 0) {
+            setWalletConnected(false);
+            setWalletAddress('');
+            addToTerminal('INFO: Wallet disconnected');
+          } else {
+            setWalletAddress(newAccounts[0]);
+            addToTerminal(`INFO: Account switched to ${newAccounts[0].slice(0, 6)}...${newAccounts[0].slice(-4)}`);
+          }
+        });
       }
     } catch (error) {
+      console.error('Wallet connection error:', error);
       if (error.code === 4001) {
-        addToTerminal('❌ Wallet connection rejected by user');
+        addToTerminal('ERROR: Wallet connection rejected by user');
+      } else if (error.code === -32002) {
+        addToTerminal('WARNING: Wallet connection request already pending');
       } else {
-        addToTerminal(`❌ Failed to connect wallet: ${error.message}`);
+        addToTerminal(`ERROR: Failed to connect wallet - ${error.message || 'Unknown error'}`);
       }
     }
   };
 
   const addToTerminal = (message) => {
-    setTerminalOutput(prev => prev + '\n' + message + '\n$ ');
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+    setTerminalOutput(prev => prev + '\n[' + timestamp + '] ' + message + '\n$ ');
   };
 
   const handleEditorDidMount = (editor, monaco) => {
@@ -206,12 +272,12 @@ function App() {
       newBreakpoints.add(lineNumber);
     }
     setBreakpoints(newBreakpoints);
-    addToTerminal(`🔴 Breakpoint ${newBreakpoints.has(lineNumber) ? 'added' : 'removed'} at line ${lineNumber}`);
+    addToTerminal(`DEBUG: Breakpoint ${newBreakpoints.has(lineNumber) ? 'set' : 'cleared'} at line ${lineNumber}`);
   };
 
   const saveFile = () => {
     fileTree.src[activeTab] = { type: 'file', content: code };
-    addToTerminal(`💾 Saved ${activeTab}`);
+    addToTerminal(`INFO: File saved - ${activeTab}`);
   };
 
   const newFile = () => {
@@ -231,7 +297,7 @@ function App() {
   const buildProject = async () => {
     setIsLoading(true);
     setBuildOutput('');
-    addToTerminal('🔨 Building Stylus contract...');
+    addToTerminal('BUILD: Starting compilation process...');
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     setBuildOutput('Compiling stylus-contract v0.1.0\n');
@@ -246,7 +312,7 @@ function App() {
     setBuildOutput(prev => prev + '📦 WASM size: 2.4KB (optimized)\n');
     setBuildOutput(prev => prev + '⚡ Gas estimation: ~120 per function call\n');
     
-    addToTerminal('✅ Build completed successfully');
+    addToTerminal('BUILD: Compilation completed successfully');
     setIsLoading(false);
   };
 
@@ -254,13 +320,13 @@ function App() {
     setIsLoading(true);
     setTestResults([]);
     setSidebarView('test');
-    addToTerminal('🧪 Running unit tests...');
+    addToTerminal('TEST: Initializing test runner...');
     
     await new Promise(resolve => setTimeout(resolve, 500));
-    addToTerminal('📝 Parsing test cases...');
+    addToTerminal('TEST: Parsing test cases...');
     
     await new Promise(resolve => setTimeout(resolve, 800));
-    addToTerminal('🔄 Executing tests in Wasmer runtime...');
+    addToTerminal('TEST: Executing tests in Wasmer runtime...');
     
     const mockResults = [
       {
@@ -301,28 +367,29 @@ function App() {
     setTestResults(mockResults);
     const passed = mockResults.filter(t => t.passed).length;
     const total = mockResults.length;
-    addToTerminal(`🧪 Tests completed: ${passed}/${total} passed`);
+    addToTerminal(`TEST: Completed - ${passed}/${total} tests passed`);
     setIsLoading(false);
   };
 
   const deployContract = async () => {
     if (!walletConnected) {
-      addToTerminal('❌ Please connect your wallet first');
+      addToTerminal('ERROR: Wallet connection required for deployment');
       return;
     }
     
     setIsLoading(true);
-    addToTerminal('🚀 Deploying to Arbitrum Sepolia...');
-    addToTerminal('📝 Preparing WASM bytecode...');
+    addToTerminal('DEPLOY: Initiating deployment to Arbitrum Sepolia...');
+    addToTerminal('DEPLOY: Preparing WASM bytecode...');
     
     await new Promise(resolve => setTimeout(resolve, 1500));
-    addToTerminal('⛽ Estimating gas...');
+    addToTerminal('DEPLOY: Estimating gas costs...');
     
     await new Promise(resolve => setTimeout(resolve, 800));
     const contractAddress = '0x742d35Cc6634C0532925a3b8D404d354Da7a1E91';
-    addToTerminal(`📝 Contract deployed at: ${contractAddress}`);
-    addToTerminal('⛽ Gas used: 234,567');
-    addToTerminal('💰 Cost: 0.0012 ETH');
+    addToTerminal('DEPLOY: Contract deployed successfully');
+    addToTerminal(`DEPLOY: Address - ${contractAddress}`);
+    addToTerminal('DEPLOY: Gas used - 234,567');
+    addToTerminal('DEPLOY: Transaction cost - 0.0012 ETH');
     
     setDeployedContract({
       address: contractAddress,
@@ -339,8 +406,8 @@ function App() {
   const profileGas = async () => {
     setIsLoading(true);
     setSidebarView('profiler');
-    addToTerminal('📊 Profiling gas usage...');
-    addToTerminal('🔍 Analyzing WASM instructions...');
+    addToTerminal('PROFILE: Starting gas analysis...');
+    addToTerminal('PROFILE: Analyzing WASM instruction costs...');
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -363,14 +430,14 @@ function App() {
       stackDepth: 2
     });
     
-    addToTerminal('📊 Gas profiling completed');
+    addToTerminal('PROFILE: Analysis completed');
     setIsLoading(false);
   };
 
   const startDebugger = async () => {
     setIsLoading(true);
     setSidebarView('debug');
-    addToTerminal('🐛 Starting interactive debugger...');
+    addToTerminal('DEBUG: Initializing interactive debugger...');
     
     await new Promise(resolve => setTimeout(resolve, 800));
     
@@ -397,7 +464,7 @@ function App() {
       ]
     });
     
-    addToTerminal('🐛 Debugger ready - Use step controls');
+    addToTerminal('DEBUG: Debugger session active - Use step controls');
     setIsLoading(false);
   };
 
@@ -414,14 +481,14 @@ function App() {
     if (nextIndex < executionTrace.length) {
       const nextTrace = executionTrace[nextIndex];
       setCurrentExecutionLine(nextTrace.line);
-      addToTerminal(`🔍 Step ${mode}: Line ${nextTrace.line} - ${nextTrace.instruction}`);
+      addToTerminal(`DEBUG: Step ${mode} - Line ${nextTrace.line}: ${nextTrace.instruction}`);
       
       if (editorRef.current) {
         editorRef.current.revealLineInCenter(nextTrace.line);
         editorRef.current.setPosition({ lineNumber: nextTrace.line, column: 1 });
       }
     } else {
-      addToTerminal('🏁 Execution completed');
+      addToTerminal('DEBUG: Execution completed');
       setDebugSession(null);
       setCurrentExecutionLine(null);
     }
@@ -429,12 +496,12 @@ function App() {
 
   const interactWithContract = async (functionName, args = []) => {
     if (!deployedContract) {
-      addToTerminal('❌ No contract deployed');
+      addToTerminal('ERROR: No contract deployed');
       return;
     }
     
     setIsLoading(true);
-    addToTerminal(`📞 Calling ${functionName}(${args.join(', ')})...`);
+    addToTerminal(`CONTRACT: Calling function ${functionName}(${args.join(', ')})`);
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -445,8 +512,8 @@ function App() {
     };
     
     const result = mockResults[functionName] || 0;
-    addToTerminal(`✅ Result: ${result}`);
-    addToTerminal(`⛽ Gas used: ${Math.floor(Math.random() * 50) + 80}`);
+    addToTerminal(`CONTRACT: Function returned - ${result}`);
+    addToTerminal(`CONTRACT: Gas consumed - ${Math.floor(Math.random() * 50) + 80}`);
     
     setIsLoading(false);
     return result;
@@ -478,123 +545,256 @@ function App() {
     }
   };
 
+  const applyEdit = (newCodeRaw) => {
+    // Strip Markdown code fences if present so we only apply the code body
+    let newCode = newCodeRaw;
+    const fenceMatch = newCodeRaw.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```\s*$/);
+    if (fenceMatch) {
+      newCode = fenceMatch[1];
+    }
+    setCode(newCode);
+    const path = activeTab.endsWith('.rs') ? 'src' : Object.keys(fileTree).find(p => fileTree[p][activeTab]);
+    if (path) {
+      fileTree[path][activeTab].content = newCode;
+    } else {
+      fileTree[activeTab].content = newCode;
+    }
+    setFileTree({...fileTree});
+    addToTerminal('ARIAI: Code changes applied to ' + activeTab);
+  };
+
+  const handleFileAttachment = (event) => {
+    const files = Array.from(event.target.files);
+    const validFiles = files.filter(file => {
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain', 'text/markdown'];
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      
+      if (!validTypes.includes(file.type)) {
+        addToTerminal(`ERROR: Unsupported file type - ${file.name}`);
+        return false;
+      }
+      if (file.size > maxSize) {
+        addToTerminal(`ERROR: File size exceeds limit - ${file.name} (max 10MB)`);
+        return false;
+      }
+      return true;
+    });
+    
+    setAttachedFiles(prev => [...prev, ...validFiles]);
+    addToTerminal(`INFO: ${validFiles.length} file(s) attached successfully`);
+  };
+
+  const removeAttachment = (index) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const processAttachedFiles = async (files) => {
+    const fileContents = [];
+    
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        // For images, just include metadata
+        fileContents.push(`[Image: ${file.name}, ${file.type}, ${(file.size/1024).toFixed(1)}KB]`);
+      } else if (file.type === 'application/pdf') {
+        fileContents.push(`[PDF: ${file.name}, ${(file.size/1024).toFixed(1)}KB]`);
+      } else {
+        // For text files, read content
+        try {
+          const text = await file.text();
+          fileContents.push(`[File: ${file.name}]\n${text}`);
+        } catch (error) {
+          fileContents.push(`[File: ${file.name} - Error reading content]`);
+        }
+      }
+    }
+    
+    return fileContents.join('\n\n');
+  };
+
+  const sendMessage = async () => {
+    if (!inputMessage.trim() && attachedFiles.length === 0) return;
+    
+    const messageMode = ariAIMode;
+    let processedMessage = inputMessage;
+    
+    // Process attached files
+    if (attachedFiles.length > 0) {
+      const fileContent = await processAttachedFiles(attachedFiles);
+      processedMessage = `${inputMessage}\n\nAttached files:\n${fileContent}`;
+    }
+    
+    // Handle migration mode with enhanced prompt
+    if (ariAIMode === 'migrate') {
+      processedMessage = `Convert this ${sourceLanguage} code to ${targetLanguage}. Maintain the same functionality and add appropriate comments explaining the conversion:\n\n${processedMessage}`;
+    }
+    
+    const userMessage = {
+      role: 'user', 
+      content: inputMessage, 
+      mode: messageMode,
+      attachments: attachedFiles.map(f => ({ name: f.name, type: f.type, size: f.size }))
+    };
+    
+    const newHistory = [...chatHistory, userMessage];
+    setChatHistory(newHistory);
+    setInputMessage('');
+    setAttachedFiles([]);
+    setIsLoading(true);
+    
+    try {
+      const res = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: processedMessage,
+          mode: ariAIMode,
+          code: code,
+          file: activeTab,
+          sourceLanguage: sourceLanguage,
+          targetLanguage: targetLanguage
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      setChatHistory([...newHistory, { role: 'assistant', content: data.response, mode: messageMode }]);
+      
+      // Log successful interaction
+      addToTerminal(`ARIAI: Response generated in ${messageMode} mode`);
+      
+    } catch (error) {
+      addToTerminal(`ERROR: AriAI communication failed - ${error.message}`);
+      // Add error message to chat
+      setChatHistory([...newHistory, { 
+        role: 'assistant', 
+        content: `Sorry, I encountered an error: ${error.message}. Please try again.`, 
+        mode: messageMode 
+      }]);
+    }
+    
+    setIsLoading(false);
+  };
+
   const menuActions = {
     file: {
       'New File': () => {
         newFile();
-        addToTerminal('📄 New file created');
+        addToTerminal('INFO: New file created');
       },
       'Save': () => {
         saveFile();
-        addToTerminal('💾 File saved successfully');
+        addToTerminal('INFO: File saved successfully');
       },
       'Save All': () => {
         Object.keys(fileTree.src).forEach(file => {
           fileTree.src[file] = { type: 'file', content: code };
         });
-        addToTerminal('💾 All files saved');
+        addToTerminal('INFO: All files saved');
       },
       'Close': () => {
         if (activeTab) {
           closeTab(activeTab);
-          addToTerminal(`🗂️ Closed ${activeTab}`);
+          addToTerminal(`INFO: Closed ${activeTab}`);
         }
       },
-      'Exit': () => addToTerminal('👋 Goodbye! Thanks for using Arbitrum Stylus IDE')
+      'Exit': () => addToTerminal('INFO: Goodbye! Thanks for using Arbitrum Stylus IDE')
     },
     edit: {
       'Undo': () => {
         editorRef.current?.trigger('keyboard', 'undo', null);
-        addToTerminal('↶ Undo action performed');
+        addToTerminal('EDIT: Undo action performed');
       },
       'Redo': () => {
         editorRef.current?.trigger('keyboard', 'redo', null);
-        addToTerminal('↷ Redo action performed');
+        addToTerminal('EDIT: Redo action performed');
       },
       'Find': () => {
         editorRef.current?.trigger('keyboard', 'actions.find', null);
-        addToTerminal('🔍 Find dialog opened');
+        addToTerminal('EDIT: Find dialog opened');
       },
       'Replace': () => {
         editorRef.current?.trigger('keyboard', 'editor.action.startFindReplaceAction', null);
-        addToTerminal('🔄 Find & Replace dialog opened');
+        addToTerminal('EDIT: Find & Replace dialog opened');
       },
       'Format Document': () => {
         editorRef.current?.trigger('editor', 'editor.action.formatDocument', null);
-        addToTerminal('✨ Document formatted');
+        addToTerminal('EDIT: Document formatted');
       }
     },
     view: {
       'Command Palette': () => {
         setShowCommandPalette(true);
-        addToTerminal('⌘ Command palette opened');
+        addToTerminal('VIEW: Command palette opened');
       },
       'Toggle Terminal': () => {
         setShowTerminal(!showTerminal);
-        addToTerminal(`📟 Terminal ${!showTerminal ? 'opened' : 'closed'}`);
+        addToTerminal(`VIEW: Terminal ${!showTerminal ? 'opened' : 'closed'}`);
       },
       'Toggle Theme': () => {
         toggleTheme();
-        addToTerminal(`🎨 Switched to ${theme === 'dark' ? 'light' : 'dark'} theme`);
+        addToTerminal(`VIEW: Switched to ${theme === 'dark' ? 'light' : 'dark'} theme`);
       },
       'Explorer': () => {
         setSidebarView('explorer');
-        addToTerminal('📁 File explorer opened');
+        addToTerminal('VIEW: File explorer opened');
       },
       'Testing': () => {
         setSidebarView('test');
-        addToTerminal('🧪 Test panel opened');
+        addToTerminal('VIEW: Test panel opened');
       },
       'Git': () => {
         setSidebarView('git');
-        addToTerminal('📂 Git panel opened');
+        addToTerminal('VIEW: Git panel opened');
       },
       'LearnARB': () => {
         setSidebarView('learn');
-        addToTerminal('📚 LearnARB panel opened');
+        addToTerminal('VIEW: LearnARB panel opened');
       },
       'Gas Profiler': () => {
         setSidebarView('profiler');
-        addToTerminal('📊 Gas profiler opened');
+        addToTerminal('VIEW: Gas profiler opened');
       },
       'Debugger': () => {
         setSidebarView('debug');
-        addToTerminal('🐛 Debugger panel opened');
+        addToTerminal('VIEW: Debugger panel opened');
       }
     },
     run: {
       'Build Project': () => {
         buildProject();
-        addToTerminal('🔨 Build process started');
+        addToTerminal('RUN: Build process started');
       },
       'Run Tests': () => {
         runTests();
-        addToTerminal('🧪 Test execution started');
+        addToTerminal('RUN: Test execution started');
       },
       'Start Debugging': () => {
         startDebugger();
-        addToTerminal('🐛 Debug session started');
+        addToTerminal('RUN: Debug session started');
       },
       'Deploy Contract': () => {
         if (walletConnected) {
           deployContract();
-          addToTerminal('🚀 Contract deployment started');
+          addToTerminal('RUN: Contract deployment started');
         } else {
-          addToTerminal('❌ Please connect wallet first');
+          addToTerminal('ERROR: Please connect wallet first');
         }
       },
       'Profile Gas': () => {
         profileGas();
-        addToTerminal('📊 Gas profiling started');
+        addToTerminal('RUN: Gas profiling started');
       }
     },
     help: {
       'Documentation': () => {
-        addToTerminal('📖 Opening Arbitrum Stylus documentation...');
+        addToTerminal('HELP: Opening Arbitrum Stylus documentation...');
         window.open('https://docs.arbitrum.io/stylus/stylus-gentle-introduction', '_blank');
       },
       'Keyboard Shortcuts': () => {
-        addToTerminal('⌨️ Keyboard shortcuts:');
+        addToTerminal('HELP: Keyboard shortcuts:');
         addToTerminal('  Ctrl+S: Save file');
         addToTerminal('  Ctrl+Shift+P: Command palette');
         addToTerminal('  Ctrl+Shift+B: Build project');
@@ -602,9 +802,9 @@ function App() {
         addToTerminal('  F5: Start debugging');
       },
       'About': () => {
-        addToTerminal('ℹ️ Arbitrum Stylus IDE v1.0.0');
-        addToTerminal('🏗️ Built for Arbitrum ecosystem development');
-        addToTerminal('🦀 Rust + WebAssembly smart contracts');
+        addToTerminal('INFO: Arbitrum Stylus IDE v1.0.0');
+        addToTerminal('INFO: Built for Arbitrum ecosystem development');
+        addToTerminal('INFO: Rust + WebAssembly smart contracts');
       }
     }
   };
@@ -895,6 +1095,263 @@ function App() {
     </div>
   );
 
+  const AriAIPanel = () => (
+    <div className="ariai-panel">
+      <div className="ariai-header">
+        <div className="ariai-title">
+          <div className="ariai-logo">🤖</div>
+          <div className="ariai-info">
+            <h3>AriAI Assistant</h3>
+            <span className="ariai-status">Ready to help</span>
+          </div>
+        </div>
+        <div className="ariai-controls">
+          <div className="mode-selector">
+            <button
+              className={`mode-btn ${ariAIMode === 'chat' ? 'active' : ''}`}
+              onClick={() => setAriAIMode('chat')}
+              title="Chat Mode - General assistance"
+            >
+              💬 Chat
+            </button>
+            <button
+              className={`mode-btn ${ariAIMode === 'agent' ? 'active' : ''}`}
+              onClick={() => setAriAIMode('agent')}
+              title="Agent Mode - Code editing"
+            >
+              🛠️ Agent
+            </button>
+            <button
+              className={`mode-btn ${ariAIMode === 'migrate' ? 'active' : ''}`}
+              onClick={() => setAriAIMode('migrate')}
+              title="Migration Mode - Language conversion"
+            >
+              🔄 Migrate
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="ariai-content">
+        <div className="chat-messages" ref={chatHistoryRef}>
+          {chatHistory.length === 0 && (
+            <div className="welcome-message">
+              <div className="welcome-icon">🚀</div>
+              <h4>Welcome to AriAI!</h4>
+              <p>I can help you with:</p>
+              <ul>
+                <li>💬 <strong>Chat:</strong> Code questions & debugging</li>
+                <li>🛠️ <strong>Agent:</strong> Direct code editing</li>
+                <li>🔄 <strong>Migrate:</strong> Convert between Solidity, Rust & C++</li>
+              </ul>
+              <div className="quick-actions">
+                <button className="quick-btn" onClick={() => setInputMessage('Explain this Rust code')}>
+                  Explain Code
+                </button>
+                <button className="quick-btn" onClick={() => setInputMessage('Optimize gas usage')}>
+                  Optimize Gas
+                </button>
+                <button className="quick-btn" onClick={() => setInputMessage('Convert to Solidity')}>
+                  Convert Language
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {chatHistory.map((msg, i) => (
+            <div key={i} className={`message ${msg.role}`}>
+              <div className="message-avatar">
+                {msg.role === 'user' ? '👤' : '🤖'}
+              </div>
+              <div className="message-body">
+                <div className="message-header">
+                  <span className="message-sender">
+                    {msg.role === 'user' ? 'You' : 'AriAI'}
+                  </span>
+                  <span className="message-mode">{msg.mode}</span>
+                  <span className="message-time">{new Date().toLocaleTimeString()}</span>
+                </div>
+                <div className="message-content">
+                  {msg.role === 'assistant' && msg.content.includes('```') ? (
+                    <div className="code-response">
+                      <pre><code>{msg.content.replace(/```[a-z]*\n?|```/g, '')}</code></pre>
+                      {msg.mode === 'agent' && (
+                        <div className="code-actions">
+                          <button className="action-btn apply" onClick={() => applyEdit(msg.content)}>
+                            ✅ Apply Changes
+                          </button>
+                          <button className="action-btn copy" onClick={() => navigator.clipboard.writeText(msg.content.replace(/```[a-z]*\n?|```/g, ''))}>
+                            📋 Copy Code
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-content">{msg.content}</div>
+                  )}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="message-attachments">
+                      <div className="attachments-header">📎 Attachments:</div>
+                      {msg.attachments.map((att, idx) => (
+                        <div key={idx} className="attachment-item">
+                          <span className="attachment-icon">
+                            {att.type.startsWith('image/') ? '🖼️' : 
+                             att.type === 'application/pdf' ? '📄' : '📝'}
+                          </span>
+                          <span className="attachment-name">{att.name}</span>
+                          <span className="attachment-size">({(att.size/1024).toFixed(1)}KB)</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {isLoading && (
+            <div className="message assistant">
+              <div className="message-avatar">🤖</div>
+              <div className="message-body">
+                <div className="message-header">
+                  <span className="message-sender">AriAI</span>
+                  <span className="message-mode">{ariAIMode}</span>
+                </div>
+                <div className="message-content loading">
+                  <div className="typing-indicator">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <span>Thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="ariai-input-area">
+          {ariAIMode === 'migrate' && (
+            <div className="migration-controls">
+              <select 
+                className="lang-select" 
+                value={sourceLanguage} 
+                onChange={(e) => setSourceLanguage(e.target.value)}
+              >
+                <option value="rust">🦀 Rust</option>
+                <option value="solidity">💎 Solidity</option>
+                <option value="cpp">⚡ C++</option>
+              </select>
+              <span className="migration-arrow">→</span>
+              <select 
+                className="lang-select" 
+                value={targetLanguage} 
+                onChange={(e) => setTargetLanguage(e.target.value)}
+              >
+                <option value="solidity">💎 Solidity</option>
+                <option value="rust">🦀 Rust</option>
+                <option value="cpp">⚡ C++</option>
+              </select>
+            </div>
+          )}
+          
+          <div className="input-container">
+            {attachedFiles.length > 0 && (
+              <div className="attached-files">
+                <div className="attachments-header">📎 Attached Files:</div>
+                <div className="attachments-list">
+                  {attachedFiles.map((file, index) => (
+                    <div key={index} className="attachment-preview">
+                      <span className="attachment-icon">
+                        {file.type.startsWith('image/') ? '🖼️' : 
+                         file.type === 'application/pdf' ? '📄' : '📝'}
+                      </span>
+                      <span className="attachment-info">
+                        <span className="attachment-name">{file.name}</span>
+                        <span className="attachment-size">({(file.size/1024).toFixed(1)}KB)</span>
+                      </span>
+                      <button 
+                        className="remove-attachment" 
+                        onClick={() => removeAttachment(index)}
+                        title="Remove attachment"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="input-wrapper">
+              <textarea
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder={ariAIMode === 'chat' ? 'Ask me anything about your code...' : 
+                           ariAIMode === 'agent' ? 'Tell me what to change in your code...' :
+                           'Paste code to migrate between languages...'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!isLoading && (inputMessage.trim() || attachedFiles.length > 0)) sendMessage();
+                  }
+                }}
+                className="message-input"
+                rows={3}
+                autoFocus={false}
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+              />
+              <div className="input-actions">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.txt,.md"
+                  onChange={handleFileAttachment}
+                  style={{ display: 'none' }}
+                />
+                <button 
+                  className="attach-btn" 
+                  title="Attach files (Images, PDF, Text)"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  📎
+                </button>
+                <button 
+                  className="send-btn" 
+                  onClick={sendMessage} 
+                  disabled={isLoading || (!inputMessage.trim() && attachedFiles.length === 0)}
+                  title="Send message (Enter)"
+                >
+                  {isLoading ? (
+                    <div className="loading-spinner"></div>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="input-footer">
+              <span className="input-hint">
+                {ariAIMode === 'chat' ? '💡 Ask about debugging, optimization, or best practices' :
+                 ariAIMode === 'agent' ? '🛠️ I\'ll directly edit your code based on your request' :
+                 '🔄 I\'ll convert your code between Solidity, Rust, and C++'}
+                {attachedFiles.length > 0 && (
+                  <span className="attachment-hint"> • {attachedFiles.length} file(s) attached</span>
+                )}
+              </span>
+              <div className="input-stats">
+                <span>{inputMessage.length}/2000</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const ContractInteraction = () => (
     showContractInteraction && deployedContract && (
       <div className="modal-overlay" onClick={() => setShowContractInteraction(false)}>
@@ -977,7 +1434,7 @@ function App() {
                       try {
                         handler();
                       } catch (error) {
-                        addToTerminal(`❌ Error executing ${action}: ${error.message}`);
+                        addToTerminal(`ERROR: Failed to execute ${action} - ${error.message}`);
                       }
                       setShowMenuDropdown(null);
                     }}
@@ -1041,6 +1498,13 @@ function App() {
             title="LearnARB"
           >
             📚
+          </div>
+          <div 
+            className={`activity-item ${sidebarView === 'ariai' ? 'active' : ''}`}
+            onClick={() => setSidebarView('ariai')}
+            title="AriAI"
+          >
+            🤖
           </div>
           <div 
             className="activity-item"
@@ -1163,6 +1627,17 @@ function App() {
             />
           </div>
         </div>
+        <div 
+          className={`right-sidebar ${sidebarView === 'ariai' ? 'visible' : ''}`}
+          style={{ width: sidebarView === 'ariai' ? `${sidebarWidth}px` : '0' }}
+        >
+          {sidebarView === 'ariai' && (
+            <>
+              <div className="resize-handle"></div>
+              <AriAIPanel />
+            </>
+          )}
+        </div>
       </div>
 
       {showTerminal && (
@@ -1170,7 +1645,7 @@ function App() {
           <div className="terminal-header">
             <span>TERMINAL</span>
             <div className="terminal-actions">
-              <button onClick={() => setTerminalOutput('$ ')}>Clear</button>
+              <button onClick={() => setTerminalOutput('Arbitrum Stylus IDE Terminal\nType commands or use the toolbar buttons above\n$ ')}>Clear</button>
               <button onClick={() => setShowTerminal(false)}>×</button>
             </div>
           </div>
