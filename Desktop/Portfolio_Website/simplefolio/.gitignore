@@ -1,8 +1,0 @@
-# Ignorefiles
-.env
-.env.local
-
-.parcel-cache/
-dist/
-node_modules/
-
